@@ -1,0 +1,76 @@
+# Fonction de MapReduce 
+
+## Fonction Map
+
+var mapFunction = function() {
+  var amount = this.amount;
+  var account = this.account;
+  var date = this.date;
+  emit({account: account, date: date}, amount);
+};
+
+
+## Fonction Reduce
+
+var reduceFunction = function(key, values) {
+  var totalAmount = Array.sum(values);
+  if (totalAmount > 10000) {
+    return {fraud: true, totalAmount: totalAmount};
+  } else {
+    return {fraud: false, totalAmount: totalAmount};
+  }
+};
+
+
+## Appel de la fonction MapReduce
+
+db.transactions.mapReduce(
+  mapFunction,
+  reduceFunction,
+  { out: "fraud_detection" }
+);
+
+
+# Fonction d'agrégation sur les transactions par compte 
+
+db.transactions.aggregate([
+    {
+        $group:{
+            _id:"$account_id",
+            count:{$sum:1},
+            total:{$sum:"$amount"}
+        }
+    },
+    {
+        $match:{
+            count:{$gt:10},
+            total:{$gte:50000}
+        }
+    }
+])
+
+
+# Transaction d'au moins 80% des fonds sur le compte et au moins 5000€
+
+db.transactions.find({
+    $or:[
+        {amount:{$gte:10000}},
+        {$expr:{$gt:["$amount",{$multiply:["$balance",0.8]}]}},
+        {$expr:{$gt:["$amount",{$subtract:["$balance",5000]}]}}
+    ]
+})
+
+
+# Transaction dans un intervalle de temps défini
+
+db.transactions.find({
+    timestamp:{
+        $gte:ISODate("2022-01-01T00:00:00.000Z"),
+        $lt:ISODate("2022-02-01T00:00:00.000Z")
+    },
+    $or:[
+        {$expr:{$gt:["$amount",{$multiply:["$balance",0.5]}]}},
+        {$expr:{$gt:["$amount",{$subtract:["$balance", 10000]}]}}
+    ]
+})
+
